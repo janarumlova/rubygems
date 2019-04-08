@@ -22,9 +22,10 @@ class TestGemUninstaller < Gem::InstallerTestCase
   end
 
   def test_initialize_expand_path
-    uninstaller = Gem::Uninstaller.new nil, :install_dir => '/foo//bar'
+    FileUtils.mkdir_p 'foo/bar'
+    uninstaller = Gem::Uninstaller.new nil, :install_dir => 'foo//bar'
 
-    assert_match %r|/foo/bar$|, uninstaller.instance_variable_get(:@gem_home)
+    assert_match %r|foo/bar$|, uninstaller.instance_variable_get(:@gem_home)
   end
 
   def test_ask_if_ok
@@ -133,6 +134,7 @@ class TestGemUninstaller < Gem::InstallerTestCase
   end
 
   def test_remove_not_in_home
+    Dir.mkdir "#{@gemhome}2"
     uninstaller = Gem::Uninstaller.new nil, :install_dir => "#{@gemhome}2"
 
     e = assert_raises Gem::GemNotInHomeException do
@@ -147,6 +149,20 @@ class TestGemUninstaller < Gem::InstallerTestCase
     assert_equal expected, e.message
 
     assert_path_exists @spec.gem_dir
+  end
+
+  def test_remove_symlinked_gem_home
+    symlinked_gem_home = Tempfile.new("gem_home").path
+
+    FileUtils.ln_sf(@gemhome, symlinked_gem_home)
+
+    uninstaller = Gem::Uninstaller.new nil, :install_dir => symlinked_gem_home
+
+    use_ui ui do
+      uninstaller.remove @spec
+    end
+
+    refute_path_exists @spec.gem_dir
   end
 
   def test_path_ok_eh
@@ -313,6 +329,7 @@ create_makefile '#{@spec.name}'
   end
 
   def test_uninstall_wrong_repo
+    Dir.mkdir "#{@gemhome}2"
     Gem.use_paths "#{@gemhome}2", [@gemhome]
 
     uninstaller = Gem::Uninstaller.new @spec.name, :executables => true
